@@ -305,6 +305,11 @@
     <p class="lede">Every completed workout, saved to the cloud &mdash; visible from any device, newest first.</p>
     <div id="history-status" class="card accent-charcoal" style="margin-top:14px;"><p class="small">Loading history&hellip;</p></div>
     <div id="history-list" style="margin-top:14px;"></div>
+
+    <h2 style="font-size:19px; margin-top:32px;">Practice Commitment</h2>
+    <p class="lede">Every logged effort entry, newest first.</p>
+    <div id="practice-history-status" class="card accent-charcoal" style="margin-top:14px;"><p class="small">Loading&hellip;</p></div>
+    <div id="practice-history-list" style="margin-top:14px;"></div>
   </div>
 
   <div class="footer">Aria's Training &middot; Mon/Wed/Fri lifting &middot; Sep 2026 &ndash; Mar 2027 &middot; Fields reset when you close the page unless you write your numbers down.</div>
@@ -580,7 +585,7 @@ var CONFIG = {
     document.querySelectorAll('nav.pillnav button').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-view')===name); });
     if (name==='calendar') renderCalendar();
     if (name==='progress') renderProgress();
-    if (name==='history') renderHistory();
+    if (name==='history'){ renderHistory(); renderPracticeHistory(); }
   };
 
   window.goToToday = function(){
@@ -606,14 +611,39 @@ var CONFIG = {
     if (btn) btn.classList.add('selected');
   };
 
-  window.logPracticeCommitment = function(){
+  window.logPracticeCommitment = async function(){
     var reflection = document.getElementById('effort-reflection');
     if (!selectedEffort){ alert('Pick an effort level first (1-4) before logging.'); return; }
     var today = todayMid();
-    practiceLog.unshift({date: fmtShort(today), effort: selectedEffort, reflection: reflection.value});
+    var isoDate = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+    var reflectionText = reflection.value;
+    var effortLevel = selectedEffort;
+
+    // Instant local confirmation on Home, regardless of save outcome
+    practiceLog.unshift({date: fmtShort(today), effort: effortLevel, reflection: reflectionText, saved:false});
     reflection.value = '';
     document.querySelectorAll('.feel-btn[data-effort]').forEach(function(b){ b.classList.remove('selected'); });
     selectedEffort = null;
+    renderPracticeLog();
+
+    if (!auth.athleteId){
+      var el = document.getElementById('practice-log-list');
+      if (el) el.innerHTML = '<p class="small">Signed in as coach — not saved as a logged entry.</p>' + el.innerHTML;
+      return;
+    }
+
+    var res = await sb.from('practice_commitments').insert({
+      athlete_id: auth.athleteId,
+      entry_date: isoDate,
+      effort_level: effortLevel,
+      reflection: reflectionText || null
+    });
+
+    if (res.error){
+      practiceLog[0].saveError = res.error.message;
+    } else {
+      practiceLog[0].saved = true;
+    }
     renderPracticeLog();
   };
 
@@ -624,11 +654,11 @@ var CONFIG = {
     var labelMap = {1:'1 — Went through it', 2:'2 — Worked', 3:'3 — Committed', 4:'4 — Challenged myself'};
     var html = '<p class="field-label" style="margin-top:4px;">This Session</p>';
     practiceLog.slice(0,8).forEach(function(entry){
-      html += '<div class="card" style="margin-top:6px; padding:10px 12px;"><p class="small"><strong>'+entry.date+'</strong> &middot; '+labelMap[entry.effort]+'</p>';
+      html += '<div class="card" style="margin-top:6px; padding:10px 12px;"><p class="small"><strong>'+entry.date+'</strong> &middot; '+labelMap[entry.effort]+(entry.saved ? ' &middot; \u2601\ufe0f Saved' : (entry.saveError ? ' &middot; Save failed: '+entry.saveError : ''))+'</p>';
       if (entry.reflection) html += '<p class="small" style="margin-top:4px;">'+entry.reflection+'</p>';
       html += '</div>';
     });
-    html += '<p class="small" style="margin-top:8px; color:var(--slate-light);">This resets when you close the page — jot down anything you want to keep long-term.</p>';
+    html += '<p class="small" style="margin-top:8px; color:var(--slate-light);">The permanent record is on the History tab.</p>';
     el.innerHTML = html;
   }
 
@@ -1091,6 +1121,33 @@ var CONFIG = {
       html += '<span class="tag red">Phase '+w.phase+'</span></div>';
       html += '<p class="small" style="margin-top:4px;">'+feel+'</p>';
       html += '<div id="hist-detail-'+w.id+'" style="display:none; margin-top:10px;"><p class="small">Loading sets\u2026</p></div>';
+      html += '</div>';
+    });
+    listEl.innerHTML = html;
+  }
+
+  async function renderPracticeHistory(){
+    var statusEl = document.getElementById('practice-history-status');
+    var listEl = document.getElementById('practice-history-list');
+    if (!statusEl || !listEl) return;
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = '<p class="small">Loading\u2026</p>';
+    listEl.innerHTML = '';
+
+    var scopedId = await resolveSiteAthleteId();
+    if (!scopedId){ statusEl.innerHTML = '<p class="small">Could not find this athlete record yet \u2014 check Supabase setup.</p>'; return; }
+
+    var res = await sb.from('practice_commitments').select('id,entry_date,effort_level,reflection').eq('athlete_id', scopedId).order('entry_date', {ascending:false}).order('created_at', {ascending:false});
+    if (res.error){ statusEl.innerHTML = '<p class="small">Could not load practice history: '+res.error.message+'</p>'; return; }
+    if (!res.data.length){ statusEl.innerHTML = '<p class="small">No practice entries saved yet. Log one from Home and it will show up here.</p>'; return; }
+    statusEl.style.display = 'none';
+
+    var labelMap = {1:'1 \u2014 Went through it', 2:'2 \u2014 Worked', 3:'3 \u2014 Committed', 4:'4 \u2014 Challenged myself'};
+    var html = '';
+    res.data.forEach(function(p){
+      html += '<div class="card accent-red" style="margin-bottom:10px;">';
+      html += '<div class="flex-between"><h3>'+fmtShort(parseDate(p.entry_date))+'</h3><span class="tag red">'+(labelMap[p.effort_level]||p.effort_level)+'</span></div>';
+      if (p.reflection) html += '<p class="small" style="margin-top:6px;">'+p.reflection+'</p>';
       html += '</div>';
     });
     listEl.innerHTML = html;
