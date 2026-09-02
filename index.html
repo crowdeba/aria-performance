@@ -90,6 +90,8 @@
   .ex-card{border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:10px; background:#fff;}
   .ex-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
   .ex-name{font-weight:800; font-size:14px;}
+  .ex-name-input{font-weight:800; font-size:14px; border:none; border-bottom:1.5px dashed transparent; background:transparent; padding:2px 0; width:auto; max-width:100%; color:var(--charcoal); font-family:inherit;}
+  .ex-name-input:hover, .ex-name-input:focus{border-bottom-color:var(--red); outline:none; background:rgba(200,16,46,0.04);}
   .ex-sr{font-weight:800; color:var(--red-deep); font-size:13px; white-space:nowrap; text-align:right;}
   .ex-cue{font-size:11.5px; color:var(--slate); margin:5px 0 10px;}
   .ex-last{font-size:11.5px; margin-bottom:8px;}
@@ -104,6 +106,9 @@
   .feel-btn[data-feel="good"].selected{background:rgba(30,142,90,0.14); border-color:var(--green);}
   .feel-btn[data-feel="tough"].selected{background:rgba(181,121,10,0.14); border-color:var(--amber);}
   .feel-btn[data-feel="too-much"].selected{background:rgba(200,16,46,0.10); border-color:var(--red);}
+  .feel-btn[data-schoolfeel="good"].selected{background:rgba(30,142,90,0.14); border-color:var(--green);}
+  .feel-btn[data-schoolfeel="tough"].selected{background:rgba(181,121,10,0.14); border-color:var(--amber);}
+  .feel-btn[data-schoolfeel="too-much"].selected{background:rgba(200,16,46,0.10); border-color:var(--red);}
   .feel-btn[data-effort].selected{background:rgba(200,16,46,0.10); border-color:var(--red); color:var(--red-deep);}
   .contrast-card{border:1.5px solid var(--red); border-radius:8px; padding:14px; margin-bottom:10px; background:#FFF7F7;}
   .round-row{display:flex; gap:8px; align-items:center; margin-top:8px;}
@@ -189,6 +194,23 @@
     <div class="card accent-charcoal" style="margin-top:14px;">
       <h3>The Goal Here</h3>
       <p class="small" style="margin-top:6px;">Push yourself. Try new things. Track your progress. But don't confuse exhaustion with productive training.</p>
+    </div>
+
+    <div class="card accent-red" style="margin-top:14px;">
+      <h3>Log A Lifting Day</h3>
+      <p class="small" style="margin-top:6px;">School strength class runs different days and different exercises than the plan on this app &mdash; log any day you actually lifted, in your own words.</p>
+      <label class="field-label" style="margin-top:10px;">Date</label>
+      <input type="date" class="field" id="school-log-date">
+      <label class="field-label" style="margin-top:10px;">What did you do?</label>
+      <textarea class="field" id="school-log-notes" placeholder="e.g. Squats 3x8, bench 3x10, some core work..."></textarea>
+      <label class="field-label" style="margin-top:10px;">How did it feel? (optional)</label>
+      <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+        <button class="feel-btn" data-schoolfeel="good" onclick="selectSchoolLogFeel('good')">&#128994; Good</button>
+        <button class="feel-btn" data-schoolfeel="tough" onclick="selectSchoolLogFeel('tough')">&#128993; Tough</button>
+        <button class="feel-btn" data-schoolfeel="too-much" onclick="selectSchoolLogFeel('too-much')">&#128308; Too Much</button>
+      </div>
+      <button class="complete-btn" style="margin-top:12px;" onclick="saveSchoolLog()">Save This Session</button>
+      <p class="small" id="school-log-status" style="margin-top:8px;"></p>
     </div>
 
     <div class="card accent-red" style="margin-top:14px;">
@@ -697,6 +719,10 @@ var CONFIG = {
     renderSchoolCoordination();
     renderPracticeLog();
     var today = todayMid();
+    var dateInput = document.getElementById('school-log-date');
+    if (dateInput && !dateInput.value){
+      dateInput.value = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+    }
     var block = getPhaseBlock(today);
     document.getElementById('home-phase').textContent = 'Current Phase: ' + (block ? block.label : (today < parseDate(CONFIG.seasonStart) ? 'Not Started Yet' : 'Season Complete'));
     document.getElementById('home-phase-blurb').textContent = block ? block.blurb : (today < parseDate(CONFIG.seasonStart) ? ('Lifting begins ' + fmtLong(parseDate(CONFIG.seasonStart))) : 'Great season. Rest up.');
@@ -758,7 +784,7 @@ var CONFIG = {
 
   function renderSetsExercise(ex, idx){
     var h = '<div class="ex-card" data-exercise="'+ex.name.replace(/"/g,'&quot;')+'">';
-    h += '<div class="ex-top"><span class="ex-name">'+ex.name+'</span><span class="ex-sr">'+ex.sets.length+' &times; '+ex.sets[0]+'</span></div>';
+    h += '<div class="ex-top"><input class="ex-name-input log-exname" value="'+ex.name.replace(/"/g,'&quot;')+'"><span class="ex-sr">'+ex.sets.length+' &times; '+ex.sets[0]+'</span></div>';
     h += '<div class="ex-cue">Rest '+ex.rest+' &middot; '+ex.cue+'</div>';
     h += '<div class="ex-last"><label class="field-label">Last Workout</label><input class="field" placeholder="e.g. 185 x 8 x 3"></div>';
     ex.sets.forEach(function(target, i){
@@ -773,7 +799,7 @@ var CONFIG = {
   }
   function renderSupersetExercise(ex){
     var h = '<div class="contrast-card" data-exercise="'+ex.name.replace(/"/g,'&quot;')+'">';
-    h += '<div class="ex-name">'+ex.name+'</div>';
+    h += '<input class="ex-name-input log-exname" value="'+ex.name.replace(/"/g,'&quot;')+'">';
     h += '<div class="ex-cue" style="margin-top:6px;">'+ex.rounds+' rounds &middot; rest '+ex.rest+' between rounds &middot; '+ex.cue+'</div>';
     h += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;"><input class="field log-weight" data-slot="a" placeholder="First exercise weight"><input class="field log-weight" data-slot="b" placeholder="Second exercise weight"></div>';
     for (var r=1;r<=ex.rounds;r++){
@@ -784,7 +810,7 @@ var CONFIG = {
   }
   function renderContrastExercise(ex){
     var h = '<div class="contrast-card" data-exercise="'+ex.name.replace(/"/g,'&quot;')+'">';
-    h += '<div class="ex-name">'+ex.name+'</div>';
+    h += '<input class="ex-name-input log-exname" value="'+ex.name.replace(/"/g,'&quot;')+'">';
     h += '<div class="ex-cue" style="margin-top:6px;">'+ex.rounds+' rounds: '+ex.liftReps+' controlled reps &rarr; rest '+ex.restBetween+' &rarr; '+ex.jumpReps+' explosive reps &rarr; rest '+ex.restRounds+' before repeating.<br>'+ex.cue+'</div>';
     h += '<div style="margin-top:8px;"><label class="field-label">Lift Weight</label><input class="field log-weight" placeholder="lb"></div>';
     for (var r=1;r<=ex.rounds;r++){
@@ -796,7 +822,7 @@ var CONFIG = {
 
   function renderPullupExercise(ex){
     var h = '<div class="ex-card" data-exercise="'+ex.name.replace(/"/g,'&quot;')+'">';
-    h += '<div class="ex-top"><span class="ex-name">'+ex.name+'</span><span class="ex-sr">'+ex.sets+' sets</span></div>';
+    h += '<div class="ex-top"><input class="ex-name-input log-exname" value="'+ex.name.replace(/"/g,'&quot;')+'"><span class="ex-sr">'+ex.sets+' sets</span></div>';
     h += '<div class="ex-cue">Rest '+ex.rest+' &middot; '+ex.cue+'</div>';
     if (ex.lastExample){
       var lastStr = ex.lastExample.map(function(s){ return s.amrap ? ('AMRAP @ '+s.assist) : (s.reps+' @ '+s.assist); }).join(', ');
@@ -887,7 +913,9 @@ var CONFIG = {
   function collectLoggedSets(){
     var rows = [];
     document.querySelectorAll('#workout-content [data-exercise]').forEach(function(exEl){
-      var exName = exEl.getAttribute('data-exercise');
+      var nameInput = exEl.querySelector('.log-exname');
+      var exName = nameInput ? nameInput.value.trim() : exEl.getAttribute('data-exercise');
+      if (!exName) exName = exEl.getAttribute('data-exercise');
       exEl.querySelectorAll('[data-set]').forEach(function(setEl){
         var setNum = parseInt(setEl.getAttribute('data-set'));
         var weightEl = setEl.querySelector('.log-weight');
@@ -905,6 +933,47 @@ var CONFIG = {
     });
     return rows;
   }
+
+  var schoolLogFeel = null;
+  window.selectSchoolLogFeel = function(feel){
+    schoolLogFeel = feel;
+    document.querySelectorAll('.feel-btn[data-schoolfeel]').forEach(function(b){ b.classList.remove('selected'); });
+    var btn = document.querySelector('.feel-btn[data-schoolfeel="'+feel+'"]');
+    if (btn) btn.classList.add('selected');
+  };
+
+  window.saveSchoolLog = async function(){
+    var status = document.getElementById('school-log-status');
+    if (!auth.athleteId || (auth.role !== 'athlete' && auth.role !== 'assistant_coach')){
+      if (status) status.textContent = "Signed in as coach \u2014 not saved. Aria or her strength coach's account can save a session.";
+      return;
+    }
+    var dateVal = document.getElementById('school-log-date').value;
+    var notesVal = document.getElementById('school-log-notes').value.trim();
+    if (!dateVal){ if (status) status.textContent = 'Pick a date first.'; return; }
+    if (!notesVal){ if (status) status.textContent = 'Write a quick note on what you did before saving.'; return; }
+
+    var logDate = parseDate(dateVal);
+    var block = getPhaseBlock(logDate);
+
+    var wRes = await sb.from('workouts').insert({
+      athlete_id: auth.athleteId,
+      workout_type: 'school-class',
+      workout_label: 'School Strength Class',
+      phase: block ? block.phase : null,
+      workout_date: dateVal,
+      completed: true,
+      readiness: schoolLogFeel ? { feel: schoolLogFeel } : null,
+      notes: notesVal
+    }).select().single();
+
+    if (wRes.error){ if (status) status.textContent = 'Could not save: ' + wRes.error.message; return; }
+
+    if (status) status.textContent = 'Saved \u2014 check the History tab to see it.';
+    document.getElementById('school-log-notes').value = '';
+    document.querySelectorAll('.feel-btn[data-schoolfeel]').forEach(function(b){ b.classList.remove('selected'); });
+    schoolLogFeel = null;
+  };
 
   async function saveWorkoutToSupabase(feel){
     if (!auth.athleteId){
@@ -1131,8 +1200,9 @@ var CONFIG = {
       html += '<div class="card accent-red" style="margin-bottom:10px; cursor:pointer;" onclick="toggleHistoryDetail(\''+w.id+'\')">';
       html += '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">';
       html += '<h3>'+fmtShort(parseDate(w.workout_date))+' &mdash; '+(w.workout_label||w.workout_type)+'</h3>';
-      html += '<span class="tag red">Phase '+w.phase+'</span></div>';
+      html += (w.phase ? '<span class="tag red">Phase '+w.phase+'</span>' : '') + '</div>';
       html += '<p class="small" style="margin-top:4px;">'+feel+'</p>';
+      if (w.notes) html += '<p class="small" style="margin-top:6px; white-space:pre-wrap;">'+w.notes+'</p>';
       html += '<div id="hist-detail-'+w.id+'" style="display:none; margin-top:10px;"><p class="small">Loading sets\u2026</p></div>';
       html += '</div>';
     });
