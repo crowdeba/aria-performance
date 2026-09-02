@@ -165,7 +165,7 @@
       <button data-view="rules" onclick="showView('rules')">Training Rules</button>
       <button data-view="history" onclick="showView('history')">History</button>
     </nav>
-    <button class="coach-link" onclick="openCoachPanel()">Coach Mode</button>
+    <button class="coach-link" id="coach-mode-btn" onclick="openCoachPanel()">Coach Mode</button>
       <button class="coach-link" onclick="doSignOut()">Sign Out</button>
   </div>
 </div>
@@ -540,6 +540,19 @@ var CONFIG = {
     auth.role = profRes.data.role;
     auth.athleteId = profRes.data.athlete_id;
     document.getElementById('login-panel').style.display = 'none';
+
+    var coachModeBtn = document.getElementById('coach-mode-btn');
+    if (coachModeBtn) coachModeBtn.style.display = (auth.role === 'assistant_coach') ? 'none' : 'inline-block';
+
+    if (auth.role === 'assistant_coach'){
+      var banner = document.createElement('div');
+      banner.className = 'card accent-charcoal';
+      banner.style.margin = '10px 16px 0';
+      banner.innerHTML = '<p class="small">Signed in as Aria\'s strength coach. You can log her workouts and see her full history &mdash; the program structure and phases are managed by her swim coach.</p>';
+      var topbar = document.querySelector('.topbar');
+      if (topbar && topbar.parentNode) topbar.parentNode.insertBefore(banner, topbar.nextSibling);
+    }
+
     initDashboard();
   }
 
